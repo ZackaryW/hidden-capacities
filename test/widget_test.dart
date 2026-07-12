@@ -1,30 +1,32 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hidden_capacities/src/settings/settings_store.dart';
+import 'package:hidden_capacities/src/ui/app.dart';
 
-import 'package:hidden_capacities/main.dart';
+class _MapKv implements SecureKeyValue {
+  final Map<String, String> data = {};
+  @override
+  Future<String?> read(String key) async => data[key];
+  @override
+  Future<void> write(String key, String value) async => data[key] = value;
+}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('boots to Home with a no-token prompt and navigates to Settings',
+      (tester) async {
+    await tester.pumpWidget(HiddenCapApp(
+      settingsOverride: SettingsStore(_MapKv()),
+      watchClipboard: false,
+    ));
+    await tester.pumpAndSettle();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Home shows the no-token prompt (no API token configured yet).
+    expect(find.text('No API token'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Navigate to Settings via the bottom nav.
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tokenField')), findsOneWidget);
+    expect(find.byKey(const Key('saveButton')), findsOneWidget);
   });
 }
