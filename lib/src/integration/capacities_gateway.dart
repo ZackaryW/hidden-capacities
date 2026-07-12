@@ -53,6 +53,43 @@ class CapacitiesGateway {
     );
   }
 
+  /// Encrypt-in-storage: append a `HIDDEN-CAP` code block carrying [blob],
+  /// delete the original block, and return the deeplink to the new block.
+  ///
+  /// The Capacities update API forbids changing a block's type, so an
+  /// encrypted block is written as a new `CodeBlock` (append) and the original
+  /// is removed — see the `capacities-integration` spec.
+  Future<CapacitiesLink> encryptBlock({
+    required String spaceId,
+    required String objectId,
+    required String originalBlockId,
+    required String blob,
+  }) async {
+    final afterAppend = await _client.appendBlock(
+      id: objectId,
+      blocks: [CodeBlock(lang: 'Text', text: blob)],
+    );
+    final newBlockId = _findAppendedCodeBlockId(afterAppend, blob);
+    if (newBlockId == null) {
+      throw StateError('appended HIDDEN-CAP code block not found in response');
+    }
+    await _client.deleteBlock(objectId: objectId, blockId: originalBlockId);
+    return CapacitiesLink(
+      spaceId: spaceId,
+      objectId: objectId,
+      blockId: newBlockId,
+    );
+  }
+
+  String? _findAppendedCodeBlockId(ApiObject object, String blob) {
+    for (final propertyId in (object.blocks ?? const {}).keys) {
+      for (final block in object.blocksIn(propertyId)) {
+        if (block is CodeBlock && block.text == blob) return block.id;
+      }
+    }
+    return null;
+  }
+
   Block? _locate(ApiObject object, String blockId) {
     for (final propertyId in (object.blocks ?? const {}).keys) {
       final found = _search(object.blocksIn(propertyId), blockId);
