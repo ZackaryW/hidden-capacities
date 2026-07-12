@@ -1,0 +1,6 @@
+schema: spec-driven
+created: 2026-07-12
+goal: Ship a cross-platform, LocalSend-styled Flutter app that transforms a
+  deeplinked Capacities block between plain rich content and an
+  AES-GCM-encrypted HIDDEN-CAP code block, with a Quill viewer and
+  passphrase-based crypto

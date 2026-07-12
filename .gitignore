@@ -25,3 +25,22 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# IDE / agent tooling
+.idea/
+*.iml
+.vscode/
+.claude/
+
+# Python (behave BDD harness)
+__pycache__/
+*.pyc
+
+# Flutter/Gradle ephemeral
+android/.gradle/
+android/local.properties
+android/key.properties
+**/GeneratedPluginRegistrant.*
+android/app/debug
+android/app/profile
+android/app/release

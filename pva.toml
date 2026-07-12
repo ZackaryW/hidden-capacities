@@ -1,0 +1,15 @@
+# Pathverse per-repo config (sectioned). Consumed by agent-compose ([agent]),
+# good-bdd ([bdd]), good-tdd ([tdd]), and zmem-commit ([zmem]).
+
+[agent]
+use = "flow-v1b"
+
+[bdd]
+stack = "dart-flutter"
+
+[tdd]
+stack = "dart-flutter"
+
+[zmem]
+terminal = "claude-code"
+commit = "auto"
