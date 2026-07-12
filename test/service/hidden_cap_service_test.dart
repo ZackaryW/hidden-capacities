@@ -1,0 +1,104 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hidden_capacities/src/crypto/hidden_cap_cipher.dart';
+import 'package:hidden_capacities/src/integration/capacities_gateway.dart';
+import 'package:hidden_capacities/src/service/hidden_cap_service.dart';
+import 'package:hidden_capacities/src/transform/block_quill_transform.dart';
+import 'package:unofficial_capacities/unofficial_capacities.dart';
+
+/// Fake gateway: the HIDDEN-CAP blob is random (salt/nonce), so we capture it
+/// rather than match exact request bytes.
+class _FakeGateway extends CapacitiesGateway {
+  _FakeGateway() : super(CapacitiesClient(apiToken: 't', dio: Dio()));
+
+  String? capturedBlob;
+
+  @override
+  Future<CapacitiesLink> encryptBlock({
+    required String spaceId,
+    required String objectId,
+    required String originalBlockId,
+    required String blob,
+  }) async {
+    capturedBlob = blob;
+    return CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: 'new-code');
+  }
+}
+
+void main() {
+  late _FakeGateway gateway;
+  late HiddenCapService service;
+
+  setUp(() {
+    gateway = _FakeGateway();
+    service = HiddenCapService(
+      gateway: gateway,
+      cipher: HiddenCapCipher(),
+      transform: BlockQuillTransform(),
+    );
+  });
+
+  LoadedBlock plainTarget() => LoadedBlock(
+        objectId: 'obj-1',
+        blockId: 'orig',
+        block: TextBlock(tokens: [const TextToken('secret note')]),
+        plainText: 'secret note',
+      );
+
+  test('encrypt then decrypt round-trips the block content through Quill delta',
+      () async {
+    final target = plainTarget();
+
+    final link = await service.encrypt(
+      target: target,
+      passphrase: 'pw',
+      spaceId: 'sp',
+    );
+
+    // Wrote a HIDDEN-CAP blob and returned the new block's deeplink.
+    expect(link.blockId, 'new-code');
+    expect(gateway.capturedBlob, startsWith('HIDDEN-CAP:'));
+
+    // Decrypting that blob recovers the original block's delta ops.
+    final encryptedTarget = LoadedBlock(
+      objectId: 'obj-1',
+      blockId: 'new-code',
+      block: CodeBlock(lang: 'Text', text: gateway.capturedBlob!),
+      plainText: gateway.capturedBlob!,
+    );
+    final ops = service.decrypt(target: encryptedTarget, passphrase: 'pw');
+
+    expect(ops, BlockQuillTransform().blockToDeltaOps(target.block));
+  });
+
+  test('decrypt with the wrong passphrase throws WrongPasswordException', () async {
+    final target = plainTarget();
+    await service.encrypt(target: target, passphrase: 'right', spaceId: 'sp');
+
+    final encryptedTarget = LoadedBlock(
+      objectId: 'obj-1',
+      blockId: 'new-code',
+      block: CodeBlock(lang: 'Text', text: gateway.capturedBlob!),
+      plainText: gateway.capturedBlob!,
+    );
+
+    expect(
+      () => service.decrypt(target: encryptedTarget, passphrase: 'wrong'),
+      throwsA(isA<WrongPasswordException>()),
+    );
+  });
+
+  test('encrypting an unsupported block surfaces UnsupportedBlockException', () {
+    final target = LoadedBlock(
+      objectId: 'obj-1',
+      blockId: 'orig',
+      block: const GridBlock(),
+      plainText: '',
+    );
+
+    expect(
+      () => service.encrypt(target: target, passphrase: 'pw', spaceId: 'sp'),
+      throwsA(isA<UnsupportedBlockException>()),
+    );
+  });
+}
