@@ -64,13 +64,33 @@ class CapacitiesGateway {
   Block? _search(List<Block> blocks, String blockId) {
     for (final block in blocks) {
       if (block.id == blockId) return block;
-      final nested = _search(block.blocks ?? const [], blockId);
+      final nested = _search(_childrenOf(block), blockId);
       if (nested != null) return nested;
     }
     return null;
   }
 
-  String _plainText(Block block) => (block.tokens ?? const [])
-      .map((t) => (t as Map<String, dynamic>)['text'] as String? ?? '')
-      .join();
+  /// Child blocks live on different arms of the union.
+  List<Block> _childrenOf(Block block) => switch (block) {
+        TextBlock(:final blocks) => blocks,
+        GroupBlock(:final blocks) => blocks,
+        GridBlock(:final columns) => columns.expand((c) => c).toList(),
+        _ => const [],
+      };
+
+  /// The block's plain single-line content for HIDDEN-CAP detection:
+  /// a `CodeBlock`'s `text`, or a `TextBlock`'s concatenated token text.
+  String _plainText(Block block) => switch (block) {
+        CodeBlock(:final text) => text,
+        TextBlock(:final tokens) => tokens
+            .map((t) => switch (t) {
+                  TextToken(:final text) => text,
+                  LinkToken(:final text) => text,
+                  MathToken(:final text) => text,
+                  CodeToken(:final text) => text,
+                  UnsupportedToken() => '',
+                })
+            .join(),
+        _ => '',
+      };
 }
