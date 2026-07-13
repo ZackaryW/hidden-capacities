@@ -129,6 +129,38 @@ void main() {
     });
   });
 
+  group('more branches', () {
+    test('a malformed capacities link surfaces invalid-link', () async {
+      await controller.handleClipboard('capacities://sp');
+      expect(controller.state, isA<HomeInvalidLink>());
+    });
+
+    test('block-not-found surfaces an error', () async {
+      gateway.loadError = BlockNotFoundException('missing');
+      await controller.handleClipboard('capacities://sp/obj?bid=missing');
+      expect(controller.state, isA<HomeError>());
+    });
+
+    test('manual decrypt (Off path) with the right passphrase yields delta',
+        () async {
+      await settings.saveAutoDecrypt(AutoDecrypt.off);
+      await settings.savePassphrase('pw');
+      gateway.next = encryptedWith('pw');
+      await controller.handleClipboard('capacities://sp/obj?bid=enc');
+      expect(controller.state, isA<HomeLoadedEncrypted>());
+
+      await controller.decryptCurrent();
+      expect(controller.state, isA<HomeDecrypted>());
+    });
+
+    test('encrypt without a passphrase surfaces an error', () async {
+      gateway.next = plain();
+      await controller.handleClipboard('capacities://sp/obj?bid=orig');
+      await controller.encryptCurrent();
+      expect(controller.state, isA<HomeError>());
+    });
+  });
+
   group('actions', () {
     test('encrypt on a plain target yields the new deeplink', () async {
       await settings.savePassphrase('pw');
