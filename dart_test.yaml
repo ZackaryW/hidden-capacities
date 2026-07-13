@@ -1,4 +1,5 @@
 # Proof tags binding behave scenarios to Flutter tests. Each @proof_<id>
 # scenario resolves to exactly one @Tags(['proof_<id>']) Dart test.
 tags:
-  proof_crypto_roundtrip:
+  proof_app_boots:
+  proof_settings_persist:

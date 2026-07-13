@@ -152,7 +152,12 @@ class _DecryptedViewState extends State<_DecryptedView> {
         ),
         const SizedBox(height: 16),
         Expanded(
-          child: QuillEditor.basic(controller: _quill),
+          child: QuillEditor.basic(
+            controller: _quill,
+            // Read-only viewer: no blinking cursor (also lets widget tests
+            // settle instead of spinning on the cursor timer).
+            config: const QuillEditorConfig(showCursor: false),
+          ),
         ),
       ],
     );
