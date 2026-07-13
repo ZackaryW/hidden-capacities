@@ -36,6 +36,9 @@ doc/api/
 __pycache__/
 *.pyc
 
+# Coverage output
+coverage/
+
 # Flutter/Gradle ephemeral
 android/.gradle/
 android/local.properties
