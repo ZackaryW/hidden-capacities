@@ -51,9 +51,10 @@
 ## 8. Detect-then-offer Flow (ties capabilities together)
 
 - [x] 8.1 On target load: detect plain vs `HIDDEN-CAP:`; for plain, offer encryption (load content into Quill → encrypt → update-in-place); for encrypted, apply the auto-decrypt setting (Off/Ask/On) → decrypt → read-only Quill, or "incorrect password"
-  - Reconcile (2026-07-14): detect + auto-decrypt (Off/Ask/On) + read-only Quill view + wrong-password state done and tested. **Gap:** the encrypt path does NOT load content into an *editable* Quill editor first — it transforms the block directly and encrypts. The editable pre-encryption editor is carved out to 8.3.
+  - Reconcile (2026-07-14): detect + auto-decrypt (Off/Ask/On) + read-only Quill view + wrong-password state done and tested. The editable pre-encryption editor gap is now closed by 8.3.
 - [x] 8.2 Wire the Home surface actions and states (idle, loaded-plain, loaded-encrypted, decrypted, error variants)
-- [ ] 8.3 Editable Quill editor on the encrypt path: load the plain block's content into an editable `flutter_quill` editor so the user can review/edit before encrypting, then serialize the edited delta → encrypt (proposal.md called for this; currently missing)
+- [x] 8.3 Editable Quill editor on the encrypt path: load the plain block's content into an editable `flutter_quill` editor so the user can review/edit before encrypting, then serialize the edited delta → encrypt (proposal.md called for this)
+  - Done (2026-07-14): `HomeLoadedPlain` now carries `initialOps`; the block is converted to editable delta at load time (`service.editableOps`, unsupported-block → error surfaced here), and `HomePage` renders an editable `QuillEditor` + toolbar seeded with it. `encryptCurrent(editedOps)` encrypts the **live editor delta**, so user edits are what get stored. `service.encrypt` now takes `deltaOps` instead of deriving from the block. +3 tests; 58 green.
 
 ## 9. Validation
 
@@ -69,7 +70,8 @@ Reconciled `tasks.md` against the actually-built `lib/` + `test/` (55 tests gree
 - **5.3 / 4.3 divergence** ✅ resolved in design.md — encryption is append-new-`CodeBlock` + delete-original (the update API forbids a type change); the `?bid=` deeplink changes, accepted.
 - **New finding** (design.md): block-level `hierarchy` (headings) is dropped by the transform — accepted degradation, possible follow-up.
 
+- **8.3** ✅ done — editable Quill editor on the encrypt path; encryption uses the live editor delta.
+
 Still outstanding before this change is truly done:
 
-- **8.3** editable Quill editor on the encrypt path — proposal called for it; not built.
-- **9.2** manual end-to-end against a real workspace (needs a live token).
+- **9.2** manual end-to-end against a real workspace (needs a live token): encrypt → re-open → decrypt to Quill, plus wrong-password and API-error paths.

@@ -31,7 +31,11 @@ class HomeLoading extends HomeState {
 
 class HomeLoadedPlain extends HomeState {
   final LoadedBlock target;
-  const HomeLoadedPlain(this.target);
+
+  /// The block's content as editable Quill delta ops, seeding the
+  /// pre-encryption editor. The user may edit these before encrypting.
+  final List<Map<String, dynamic>> initialOps;
+  const HomeLoadedPlain(this.target, this.initialOps);
 }
 
 class HomeLoadedEncrypted extends HomeState {
@@ -102,7 +106,11 @@ class HomeController extends ChangeNotifier {
     try {
       final loaded = await service.gateway.loadBlock(link);
       if (!loaded.isEncrypted) {
-        _set(HomeLoadedPlain(loaded));
+        try {
+          _set(HomeLoadedPlain(loaded, service.editableOps(loaded.block)));
+        } on UnsupportedBlockException catch (e) {
+          _set(HomeError('unsupported block type: ${e.blockType}'));
+        }
         return;
       }
       final prefs = await settings.load();
@@ -145,8 +153,10 @@ class HomeController extends ChangeNotifier {
     }
   }
 
-  /// Encrypt the currently-loaded plain block in place.
-  Future<void> encryptCurrent() async {
+  /// Encrypt the currently-loaded plain block, replacing it with a HIDDEN-CAP
+  /// code block. [editedOps] is the live Quill delta from the editor (the user
+  /// may have edited it), which becomes the encrypted payload.
+  Future<void> encryptCurrent(List<Map<String, dynamic>> editedOps) async {
     final current = _state;
     if (current is! HomeLoadedPlain) return;
     final prefs = await settings.load();
@@ -159,12 +169,11 @@ class HomeController extends ChangeNotifier {
     try {
       final link = await service.encrypt(
         target: current.target,
+        deltaOps: editedOps,
         passphrase: passphrase,
         spaceId: _spaceId ?? '',
       );
       _set(HomeEncrypted(link));
-    } on UnsupportedBlockException catch (e) {
-      _set(HomeError('unsupported block type: ${e.blockType}'));
     } on CapacitiesApiException catch (e) {
       _set(HomeError(e.message));
     }

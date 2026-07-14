@@ -60,15 +60,9 @@ class HomePage extends StatelessWidget {
           message: 'That capacities:// link could not be parsed.',
         ),
       HomeLoading() => const Center(child: CircularProgressIndicator()),
-      HomeLoadedPlain() => _Centered(
-          icon: Icons.lock_open,
-          title: 'Plain block',
-          message: 'This block is not encrypted.',
-          action: FilledButton.icon(
-            onPressed: c.encryptCurrent,
-            icon: const Icon(Icons.lock),
-            label: const Text('Encrypt'),
-          ),
+      HomeLoadedPlain(:final initialOps) => _PlainEditor(
+          initialOps: initialOps,
+          onEncrypt: c.encryptCurrent,
         ),
       HomeLoadedEncrypted() => _Centered(
           icon: Icons.lock,
@@ -108,6 +102,81 @@ class HomePage extends StatelessWidget {
           message: message,
         ),
     };
+  }
+}
+
+/// Editable Quill view of a plain block: seeded with the block's content so
+/// the user can review/edit before encrypting. The live editor delta is what
+/// gets encrypted.
+class _PlainEditor extends StatefulWidget {
+  final List<Map<String, dynamic>> initialOps;
+  final Future<void> Function(List<Map<String, dynamic>>) onEncrypt;
+
+  const _PlainEditor({required this.initialOps, required this.onEncrypt});
+
+  @override
+  State<_PlainEditor> createState() => _PlainEditorState();
+}
+
+class _PlainEditorState extends State<_PlainEditor> {
+  late final QuillController _quill;
+
+  @override
+  void initState() {
+    super.initState();
+    _quill = QuillController(
+      document: Document.fromJson(widget.initialOps),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+  }
+
+  @override
+  void dispose() {
+    _quill.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> _currentOps() =>
+      _quill.document.toDelta().toJson().cast<Map<String, dynamic>>();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: const [
+            Icon(Icons.lock_open),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Plain block — review or edit before encrypting',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        QuillSimpleToolbar(controller: _quill),
+        const SizedBox(height: 8),
+        Expanded(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(color: Theme.of(context).dividerColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: QuillEditor.basic(controller: _quill),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: () => widget.onEncrypt(_currentOps()),
+          icon: const Icon(Icons.lock),
+          label: const Text('Encrypt'),
+        ),
+      ],
+    );
   }
 }
 

@@ -156,18 +156,37 @@ void main() {
     test('encrypt without a passphrase surfaces an error', () async {
       gateway.next = plain();
       await controller.handleClipboard('capacities://sp/obj?bid=orig');
-      await controller.encryptCurrent();
+      final ops = (controller.state as HomeLoadedPlain).initialOps;
+      await controller.encryptCurrent(ops);
+      expect(controller.state, isA<HomeError>());
+    });
+
+    test('a plain but unsupported block surfaces an error', () async {
+      gateway.next = LoadedBlock(
+        objectId: 'obj-1',
+        blockId: 'orig',
+        block: const GridBlock(),
+        plainText: '',
+      );
+      await controller.handleClipboard('capacities://sp/obj?bid=orig');
       expect(controller.state, isA<HomeError>());
     });
   });
 
   group('actions', () {
+    test('a plain block loads its content as editable initial ops', () async {
+      gateway.next = plain();
+      await controller.handleClipboard('capacities://sp/obj?bid=orig');
+      expect((controller.state as HomeLoadedPlain).initialOps, isNotEmpty);
+    });
+
     test('encrypt on a plain target yields the new deeplink', () async {
       await settings.savePassphrase('pw');
       gateway.next = plain();
       await controller.handleClipboard('capacities://sp/obj?bid=orig');
+      final ops = (controller.state as HomeLoadedPlain).initialOps;
 
-      await controller.encryptCurrent();
+      await controller.encryptCurrent(ops);
       expect(controller.state, isA<HomeEncrypted>());
       expect((controller.state as HomeEncrypted).link.blockId, 'new-code');
     });

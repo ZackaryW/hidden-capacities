@@ -45,12 +45,13 @@ void main() {
         plainText: 'secret note',
       );
 
-  test('encrypt then decrypt round-trips the block content through Quill delta',
-      () async {
+  test('encrypt then decrypt round-trips the editor delta ops', () async {
     final target = plainTarget();
+    final ops = service.editableOps(target.block);
 
     final link = await service.encrypt(
       target: target,
+      deltaOps: ops,
       passphrase: 'pw',
       spaceId: 'sp',
     );
@@ -59,21 +60,25 @@ void main() {
     expect(link.blockId, 'new-code');
     expect(gateway.capturedBlob, startsWith('HIDDEN-CAP:'));
 
-    // Decrypting that blob recovers the original block's delta ops.
+    // Decrypting that blob recovers exactly the delta ops that were encrypted.
     final encryptedTarget = LoadedBlock(
       objectId: 'obj-1',
       blockId: 'new-code',
       block: CodeBlock(lang: 'Text', text: gateway.capturedBlob!),
       plainText: gateway.capturedBlob!,
     );
-    final ops = service.decrypt(target: encryptedTarget, passphrase: 'pw');
 
-    expect(ops, BlockQuillTransform().blockToDeltaOps(target.block));
+    expect(service.decrypt(target: encryptedTarget, passphrase: 'pw'), ops);
   });
 
   test('decrypt with the wrong passphrase throws WrongPasswordException', () async {
     final target = plainTarget();
-    await service.encrypt(target: target, passphrase: 'right', spaceId: 'sp');
+    await service.encrypt(
+      target: target,
+      deltaOps: service.editableOps(target.block),
+      passphrase: 'right',
+      spaceId: 'sp',
+    );
 
     final encryptedTarget = LoadedBlock(
       objectId: 'obj-1',
@@ -88,16 +93,17 @@ void main() {
     );
   });
 
-  test('encrypting an unsupported block surfaces UnsupportedBlockException', () {
-    final target = LoadedBlock(
-      objectId: 'obj-1',
-      blockId: 'orig',
-      block: const GridBlock(),
-      plainText: '',
-    );
-
+  test('editableOps on a supported block returns its Quill delta', () {
     expect(
-      () => service.encrypt(target: target, passphrase: 'pw', spaceId: 'sp'),
+      service.editableOps(plainTarget().block),
+      BlockQuillTransform().blockToDeltaOps(plainTarget().block),
+    );
+  });
+
+  test('editableOps on an unsupported block surfaces UnsupportedBlockException',
+      () {
+    expect(
+      () => service.editableOps(const GridBlock()),
       throwsA(isA<UnsupportedBlockException>()),
     );
   });

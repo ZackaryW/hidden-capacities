@@ -18,18 +18,22 @@ class HiddenCapService {
     required this.transform,
   });
 
-  /// Encrypts [target]'s content and stores it as a HIDDEN-CAP code block,
-  /// returning the deeplink to the new block.
-  ///
-  /// Throws [UnsupportedBlockException] if the block type has no clean Quill
-  /// conversion (e.g. tables, images).
+  /// The editable Quill delta ops for [block], used to seed the pre-encryption
+  /// editor. Throws [UnsupportedBlockException] if the block type has no clean
+  /// Quill conversion (e.g. tables, images).
+  List<Map<String, dynamic>> editableOps(Block block) =>
+      transform.blockToDeltaOps(block);
+
+  /// Encrypts [deltaOps] (the editor's live Quill delta for [target]) and
+  /// stores it as a HIDDEN-CAP code block, returning the deeplink to the new
+  /// block.
   Future<CapacitiesLink> encrypt({
     required LoadedBlock target,
+    required List<Map<String, dynamic>> deltaOps,
     required String passphrase,
     required String spaceId,
   }) async {
-    final payload = transform.opsToJson(transform.blockToDeltaOps(target.block));
-    final blob = cipher.encrypt(payload, passphrase);
+    final blob = cipher.encrypt(transform.opsToJson(deltaOps), passphrase);
     return gateway.encryptBlock(
       spaceId: spaceId,
       objectId: target.objectId,
