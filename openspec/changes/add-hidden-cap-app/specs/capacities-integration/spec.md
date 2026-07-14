@@ -12,11 +12,15 @@ The system SHALL use the `unofficial_capacities` `CapacitiesClient` to fetch the
 - **THEN** the app surfaces a "block not found" state rather than proceeding to encrypt/decrypt
 
 ### Requirement: Update a block in place
-The system SHALL use the client's `updateBlock` to write the `HIDDEN-CAP:` code block back to the same object and block id.
+The system SHALL use the client's `updateBlock` to write the `HIDDEN-CAP:` blob back to the same object and block id, preserving the block's position and type (the update API does not permit a type change).
 
-#### Scenario: Encrypted content persisted
+#### Scenario: Encrypted content persisted in place
 - **WHEN** encryption produces a `HIDDEN-CAP:` blob for the target
-- **THEN** the app calls `updateBlock` with the target object id and block id to persist the single-line code block
+- **THEN** the app calls `updateBlock` with the target object id and the original block id, writing a same-type block whose single-line content is the blob (a `TextBlock` stays a `TextBlock`, a `CodeBlock` stays a `CodeBlock`)
+
+#### Scenario: Position and deeplink preserved
+- **WHEN** a block is encrypted in place
+- **THEN** the block keeps its position in the object and its id, so the `capacities://` deeplink to it is unchanged
 
 ### Requirement: Decryption is read-only
 The system SHALL NOT write decrypted plaintext back to Capacities; decryption results are shown only in the app.

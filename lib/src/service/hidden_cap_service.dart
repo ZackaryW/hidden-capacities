@@ -37,7 +37,7 @@ class HiddenCapService {
     return gateway.encryptBlock(
       spaceId: spaceId,
       objectId: target.objectId,
-      originalBlockId: target.blockId,
+      original: target.block,
       blob: blob,
     );
   }

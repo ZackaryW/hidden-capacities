@@ -31,7 +31,7 @@
 - [x] 5.1 Wire a `CapacitiesClient` from the stored token; fetch the deeplinked object and locate the target block by `bid`
 - [x] 5.2 Handle "block not found" and `CapacitiesApiException` (auth/not-found/transport) as distinct error states
 - [x] 5.3 Implement in-place `updateBlock` to persist the `HIDDEN-CAP:` code block; ensure decryption never issues a write
-  - Reconcile (2026-07-14): **DIVERGENCE.** The Capacities update API forbids changing a block's type, so encryption is implemented as **append a new `CodeBlock` + delete the original** (`encryptBlock`), not an in-place `updateBlock`. Consequence: the block id and `?bid=` deeplink **change** — contradicting design.md's stated rationale that identity/deeplink stay stable. Decryption never writes (holds). **design.md needs correcting.**
+  - Reconcile (2026-07-14): an earlier build did **append + delete** (which dropped the encrypted block to the bottom and changed its `?bid=` deeplink). Fixed 2026-07-14 to a true **in-place `updateBlock`** that keeps the original block's **type** (no type change — TextBlock→TextBlock, CodeBlock→CodeBlock), preserving position and a stable deeplink. Decryption never writes (holds).
 - [x] 5.4 Unit tests (mocked client) for fetch-and-locate, update-in-place, and error-state mapping
 
 ## 6. Clipboard Deeplink (`clipboard-deeplink`)
@@ -67,7 +67,7 @@
 Reconciled `tasks.md` against the actually-built `lib/` + `test/` (55 tests green, `flutter analyze` clean, `openspec validate --strict` valid). Status:
 
 - **2.1** ✅ done — code-block wire shape confirmed live and recorded in design.md; `wire_log.dart` interceptor added.
-- **5.3 / 4.3 divergence** ✅ resolved in design.md — encryption is append-new-`CodeBlock` + delete-original (the update API forbids a type change); the `?bid=` deeplink changes, accepted.
+- **5.3 / 4.3** ✅ encryption is a true in-place `updateBlock` keeping the block's type — preserves position and a stable `?bid=` deeplink. (Fixed 2026-07-14 from an earlier append+delete that placed the block at the bottom and changed the deeplink.)
 - **New finding** (design.md): block-level `hierarchy` (headings) is dropped by the transform — accepted degradation, possible follow-up.
 
 - **8.3** ✅ done — editable Quill editor on the encrypt path; encryption uses the live editor delta.

@@ -24,10 +24,10 @@ class _FakeGateway extends CapacitiesGateway {
   Future<CapacitiesLink> encryptBlock({
     required String spaceId,
     required String objectId,
-    required String originalBlockId,
+    required Block original,
     required String blob,
   }) async =>
-      CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: 'new-code');
+      CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: original.id);
 }
 
 class _MapKv implements SecureKeyValue {
@@ -60,7 +60,7 @@ void main() {
   LoadedBlock plain() => LoadedBlock(
         objectId: 'obj-1',
         blockId: 'orig',
-        block: TextBlock(tokens: [const TextToken('secret')]),
+        block: TextBlock(id: 'orig', tokens: [const TextToken('secret')]),
         plainText: 'secret',
       );
 
@@ -188,7 +188,8 @@ void main() {
 
       await controller.encryptCurrent(ops);
       expect(controller.state, isA<HomeEncrypted>());
-      expect((controller.state as HomeEncrypted).link.blockId, 'new-code');
+      // In-place encryption keeps the original block id in the deeplink.
+      expect((controller.state as HomeEncrypted).link.blockId, 'orig');
     });
   });
 }
