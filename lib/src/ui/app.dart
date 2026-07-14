@@ -7,6 +7,7 @@ import '../clipboard/clipboard_watcher.dart';
 import '../crypto/hidden_cap_cipher.dart';
 import '../integration/capacities_gateway.dart';
 import '../service/hidden_cap_service.dart';
+import '../integration/wire_log.dart';
 import '../settings/flutter_secure_kv.dart';
 import '../settings/settings_store.dart';
 import '../transform/block_quill_transform.dart';
@@ -18,7 +19,9 @@ import 'settings_page.dart';
 typedef ServiceFactory = HiddenCapService Function(String token);
 
 HiddenCapService _defaultServiceFactory(String token) => HiddenCapService(
-      gateway: CapacitiesGateway(CapacitiesClient(apiToken: token)),
+      gateway: CapacitiesGateway(
+        CapacitiesClient(apiToken: token, dio: wireLoggingDio()),
+      ),
       cipher: HiddenCapCipher(),
       transform: BlockQuillTransform(),
     );
