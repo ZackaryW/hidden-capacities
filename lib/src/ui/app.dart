@@ -83,7 +83,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   final _watcher = ClipboardWatcher();
   HomeController? _controller;
   int _index = 0;
@@ -91,11 +91,28 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    if (widget.watchClipboard) {
+      WidgetsBinding.instance.addObserver(this);
+    }
+    // Check once on launch (a fresh focus), then rely on focus events.
     _rebuildController().then((_) {
-      if (widget.watchClipboard) {
-        _watcher.start((raw) => _controller?.handleClipboard(raw));
-      }
+      if (widget.watchClipboard) _checkClipboardIfIdle();
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Window/app gained focus — pick up a freshly copied deeplink on demand,
+    // instead of polling on a timer.
+    if (state == AppLifecycleState.resumed) _checkClipboardIfIdle();
+  }
+
+  /// Checks the clipboard only when no editor/content view is open, so a
+  /// focus change never clobbers what the user is editing or viewing.
+  void _checkClipboardIfIdle() {
+    final c = _controller;
+    if (c == null || c.hasOpenEditor) return;
+    _watcher.checkNow(c.handleClipboard);
   }
 
   Future<void> _rebuildController() async {
@@ -113,7 +130,9 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
-    _watcher.dispose();
+    if (widget.watchClipboard) {
+      WidgetsBinding.instance.removeObserver(this);
+    }
     super.dispose();
   }
 

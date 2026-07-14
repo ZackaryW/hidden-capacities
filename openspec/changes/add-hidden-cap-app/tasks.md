@@ -37,7 +37,7 @@
 ## 6. Clipboard Deeplink (`clipboard-deeplink`)
 
 - [x] 6.1 Implement a platform-agnostic clipboard watcher (event-based where available, polling otherwise)
-  - Reconcile (2026-07-14): implemented as interval polling on all platforms (no event path).
+  - Reconcile (2026-07-14): originally interval polling; changed 2026-07-14 to **on-demand**, focus-triggered checking — the shell observes app lifecycle and checks the clipboard when the window gains focus (`AppLifecycleState.resumed`) plus on the explicit "check" action, with no background timer. Focus-triggered checks are **suppressed while an editor is open** (`HomeController.hasOpenEditor`) so they never clobber the plain-block editor or the decrypted view.
 - [x] 6.2 Autoparse captured strings with `CapacitiesLink`; ignore non-deeplinks; surface "invalid link" for malformed `capacities://`
 - [x] 6.3 Jump-to-target: resolve space/object/block and load it on Home
 - [x] 6.4 Unit tests: capture valid deeplink, ignore non-deeplink, malformed-link handling, object-only vs object+block

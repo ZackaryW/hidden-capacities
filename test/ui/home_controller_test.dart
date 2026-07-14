@@ -173,6 +173,36 @@ void main() {
     });
   });
 
+  group('hasOpenEditor (suppresses focus-triggered clipboard checks)', () {
+    test('false when idle', () {
+      expect(controller.hasOpenEditor, isFalse);
+    });
+
+    test('true while a plain block editor is open', () async {
+      gateway.next = plain();
+      await controller.handleClipboard('capacities://sp/obj?bid=orig');
+      expect(controller.state, isA<HomeLoadedPlain>());
+      expect(controller.hasOpenEditor, isTrue);
+    });
+
+    test('true while the decrypted view is open', () async {
+      await settings.saveAutoDecrypt(AutoDecrypt.on);
+      await settings.savePassphrase('pw');
+      gateway.next = encryptedWith('pw');
+      await controller.handleClipboard('capacities://sp/obj?bid=enc');
+      expect(controller.state, isA<HomeDecrypted>());
+      expect(controller.hasOpenEditor, isTrue);
+    });
+
+    test('false while an encrypted block awaits a manual decrypt', () async {
+      await settings.saveAutoDecrypt(AutoDecrypt.off);
+      gateway.next = encryptedWith('pw');
+      await controller.handleClipboard('capacities://sp/obj?bid=enc');
+      expect(controller.state, isA<HomeLoadedEncrypted>());
+      expect(controller.hasOpenEditor, isFalse);
+    });
+  });
+
   group('actions', () {
     test('a plain block loads its content as editable initial ops', () async {
       gateway.next = plain();

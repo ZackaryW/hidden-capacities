@@ -73,6 +73,12 @@ class HomeController extends ChangeNotifier {
   HomeState _state = const HomeIdle();
   HomeState get state => _state;
 
+  /// True when a surface is open that a clipboard-triggered reload would
+  /// disrupt — the editable plain-block editor or the decrypted view. The
+  /// shell uses this to suppress focus-triggered clipboard checks.
+  bool get hasOpenEditor =>
+      _state is HomeLoadedPlain || _state is HomeDecrypted;
+
   /// Space id of the current target's deeplink, carried so the post-encrypt
   /// deeplink is shareable.
   String? _spaceId;
