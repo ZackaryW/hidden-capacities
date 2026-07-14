@@ -44,8 +44,17 @@ class HomeLoadedEncrypted extends HomeState {
 }
 
 class HomeDecrypted extends HomeState {
+  /// The source encrypted block, kept so the content can be re-encrypted after
+  /// an edit.
+  final LoadedBlock target;
   final List<Map<String, dynamic>> deltaOps;
-  const HomeDecrypted(this.deltaOps);
+  const HomeDecrypted(this.target, this.deltaOps);
+}
+
+class HomeEditingDecrypted extends HomeState {
+  final LoadedBlock target;
+  final List<Map<String, dynamic>> deltaOps;
+  const HomeEditingDecrypted(this.target, this.deltaOps);
 }
 
 class HomeEncrypted extends HomeState {
@@ -77,7 +86,9 @@ class HomeController extends ChangeNotifier {
   /// disrupt — the editable plain-block editor or the decrypted view. The
   /// shell uses this to suppress focus-triggered clipboard checks.
   bool get hasOpenEditor =>
-      _state is HomeLoadedPlain || _state is HomeDecrypted;
+      _state is HomeLoadedPlain ||
+      _state is HomeDecrypted ||
+      _state is HomeEditingDecrypted;
 
   /// Space id of the current target's deeplink, carried so the post-encrypt
   /// deeplink is shareable.
@@ -151,7 +162,8 @@ class HomeController extends ChangeNotifier {
       return;
     }
     try {
-      _set(HomeDecrypted(service.decrypt(target: target, passphrase: passphrase)));
+      _set(HomeDecrypted(
+          target, service.decrypt(target: target, passphrase: passphrase)));
     } on WrongPasswordException {
       _set(HomeWrongPassword(target));
     } on MalformedBlobException catch (e) {
@@ -182,6 +194,73 @@ class HomeController extends ChangeNotifier {
       _set(HomeEncrypted(link));
     } on CapacitiesApiException catch (e) {
       _set(HomeError(e.message));
+    }
+  }
+
+  /// Leave the current surface (e.g. an open editor) and return to the idle
+  /// Home state without saving.
+  void backToHome() => _set(const HomeIdle());
+
+  /// Switch a read-only decrypted view into the editable editor.
+  void editCurrent() {
+    final current = _state;
+    if (current is! HomeDecrypted) return;
+    _set(HomeEditingDecrypted(current.target, current.deltaOps));
+  }
+
+  /// Save an edit: re-encrypt [editedOps] against the current block, replacing
+  /// it with a new HIDDEN-CAP code block at the same slot.
+  Future<void> saveEdit(List<Map<String, dynamic>> editedOps) async {
+    final current = _state;
+    if (current is! HomeEditingDecrypted) return;
+    final prefs = await settings.load();
+    final passphrase = prefs.passphrase;
+    if (passphrase == null || passphrase.isEmpty) {
+      _set(const HomeError('set a passphrase in Settings first'));
+      return;
+    }
+    _set(const HomeLoading());
+    try {
+      final link = await service.encrypt(
+        target: current.target,
+        deltaOps: editedOps,
+        passphrase: passphrase,
+        spaceId: _spaceId ?? '',
+      );
+      _set(HomeEncrypted(link));
+    } on CapacitiesApiException catch (e) {
+      _set(HomeError(e.message));
+    }
+  }
+
+  /// From the post-encrypt success screen, reopen the just-encrypted block for
+  /// editing: load it, decrypt with the stored passphrase, and go straight to
+  /// the editable editor.
+  Future<void> editEncrypted() async {
+    final current = _state;
+    if (current is! HomeEncrypted) return;
+    _spaceId = current.link.spaceId;
+    _set(const HomeLoading());
+    try {
+      final loaded = await service.gateway.loadBlock(current.link);
+      final prefs = await settings.load();
+      final passphrase = prefs.passphrase;
+      if (passphrase == null || passphrase.isEmpty) {
+        _set(HomeWrongPassword(loaded));
+        return;
+      }
+      try {
+        final ops = service.decrypt(target: loaded, passphrase: passphrase);
+        _set(HomeEditingDecrypted(loaded, ops));
+      } on WrongPasswordException {
+        _set(HomeWrongPassword(loaded));
+      } on MalformedBlobException catch (e) {
+        _set(HomeError(e.message));
+      }
+    } on CapacitiesApiException catch (e) {
+      _set(HomeError(e.message));
+    } on BlockNotFoundException {
+      _set(const HomeError('block not found'));
     }
   }
 }

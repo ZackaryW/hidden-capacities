@@ -20,14 +20,18 @@ class _FakeGateway extends CapacitiesGateway {
     return next!;
   }
 
+  String? lastBlob;
+
   @override
   Future<CapacitiesLink> encryptBlock({
     required String spaceId,
     required String objectId,
     required Block original,
     required String blob,
-  }) async =>
-      CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: 'new-code');
+  }) async {
+    lastBlob = blob;
+    return CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: 'new-code');
+  }
 }
 
 class _MapKv implements SecureKeyValue {
@@ -220,6 +224,81 @@ void main() {
       expect(controller.state, isA<HomeEncrypted>());
       // Encryption creates a new code block at the original's slot; new id.
       expect((controller.state as HomeEncrypted).link.blockId, 'new-code');
+    });
+  });
+
+  group('edit and re-encrypt (inner-loop branches)', () {
+    Future<void> reachDecrypted() async {
+      await settings.saveAutoDecrypt(AutoDecrypt.on);
+      await settings.savePassphrase('pw');
+      gateway.next = encryptedWith('pw');
+      await controller.handleClipboard('capacities://sp/obj?bid=enc');
+    }
+
+    Future<void> reachEncrypted() async {
+      await settings.savePassphrase('pw');
+      gateway.next = plain();
+      await controller.handleClipboard('capacities://sp/obj?bid=orig');
+      await controller
+          .encryptCurrent((controller.state as HomeLoadedPlain).initialOps);
+    }
+
+    test('editCurrent switches a decrypted view into editing', () async {
+      await reachDecrypted();
+      controller.editCurrent();
+      expect(controller.state, isA<HomeEditingDecrypted>());
+      expect(controller.hasOpenEditor, isTrue);
+    });
+
+    test('backToHome from the editor returns to idle', () async {
+      await reachDecrypted();
+      controller.editCurrent();
+      controller.backToHome();
+      expect(controller.state, isA<HomeIdle>());
+      expect(controller.hasOpenEditor, isFalse);
+    });
+
+    test('saveEdit re-encrypts and yields a new deeplink', () async {
+      await reachDecrypted();
+      controller.editCurrent();
+      final ops = (controller.state as HomeEditingDecrypted).deltaOps;
+      await controller.saveEdit(ops);
+      expect(controller.state, isA<HomeEncrypted>());
+      expect((controller.state as HomeEncrypted).link.blockId, 'new-code');
+    });
+
+    test('saveEdit persists only ciphertext (no plaintext write)', () async {
+      await reachDecrypted();
+      controller.editCurrent();
+      final ops = (controller.state as HomeEditingDecrypted).deltaOps;
+      await controller.saveEdit(ops);
+      expect(gateway.lastBlob, startsWith('HIDDEN-CAP:'));
+    });
+
+    test('saveEdit without a passphrase surfaces an error', () async {
+      await reachDecrypted();
+      controller.editCurrent();
+      final ops = (controller.state as HomeEditingDecrypted).deltaOps;
+      await settings.savePassphrase('');
+      await controller.saveEdit(ops);
+      expect(controller.state, isA<HomeError>());
+    });
+
+    test('editEncrypted reopens the just-encrypted block in the editor',
+        () async {
+      await reachEncrypted();
+      gateway.next = encryptedWith('pw');
+      await controller.editEncrypted();
+      expect(controller.state, isA<HomeEditingDecrypted>());
+    });
+
+    test('editEncrypted without a passphrase surfaces wrong-password',
+        () async {
+      await reachEncrypted();
+      await settings.savePassphrase('');
+      gateway.next = encryptedWith('pw');
+      await controller.editEncrypted();
+      expect(controller.state, isA<HomeWrongPassword>());
     });
   });
 }

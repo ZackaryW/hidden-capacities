@@ -22,6 +22,10 @@ The system SHALL re-encrypt the edited Quill delta and persist it as a new `HIDD
 - **WHEN** a block is re-encrypted after editing
 - **THEN** the resulting block has a new id, so its `capacities://` deeplink differs from the pre-edit block
 
+#### Scenario: Leave the editor without saving
+- **WHEN** the user activates Back in the editor
+- **THEN** the app returns to the idle Home surface and no change is written to Capacities
+
 ### Requirement: Edit entry point after encrypting
 The system SHALL offer, on the post-encrypt success screen, an action to open the just-encrypted block for editing without re-copying its deeplink.
 

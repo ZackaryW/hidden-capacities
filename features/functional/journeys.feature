@@ -18,3 +18,15 @@ Feature: hidden-capacities journeys
   # Note: the decrypt-and-view journey's logic is covered by unit tests
   # (home_controller_test, hidden_cap_service_test) rather than a widget proof;
   # flutter_quill's editor timers block widget-test completion.
+
+  @proof_edit_reencrypt
+  Scenario: a user decrypts a block, edits it in the editor, and saves to re-encrypt
+    Given a bound integration proof
+    When the bound integration proof is executed
+    Then it passes
+
+  @proof_edit_after_encrypt
+  Scenario: a user opens the just-encrypted block for editing from the success screen
+    Given a bound integration proof
+    When the bound integration proof is executed
+    Then it passes

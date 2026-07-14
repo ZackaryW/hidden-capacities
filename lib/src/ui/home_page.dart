@@ -61,8 +61,10 @@ class HomePage extends StatelessWidget {
         ),
       HomeLoading() => const Center(child: CircularProgressIndicator()),
       HomeLoadedPlain(:final initialOps) => _PlainEditor(
+          key: const ValueKey('plainEditor'),
           initialOps: initialOps,
           onEncrypt: c.encryptCurrent,
+          onBack: c.backToHome,
         ),
       HomeLoadedEncrypted() => _Centered(
           icon: Icons.lock,
@@ -85,15 +87,36 @@ class HomePage extends StatelessWidget {
             label: const Text('Retry'),
           ),
         ),
-      HomeDecrypted(:final deltaOps) => _DecryptedView(deltaOps: deltaOps),
+      HomeDecrypted(:final deltaOps) =>
+        _DecryptedView(deltaOps: deltaOps, onEdit: c.editCurrent),
+      HomeEditingDecrypted(:final deltaOps) => _PlainEditor(
+          key: const ValueKey('editEditor'),
+          initialOps: deltaOps,
+          onEncrypt: c.saveEdit,
+          onBack: c.backToHome,
+          heading: 'Editing decrypted content — save to re-encrypt',
+          buttonIcon: Icons.save,
+          buttonLabel: 'Save',
+        ),
       HomeEncrypted(:final link) => _Centered(
           icon: Icons.check_circle_outline,
           title: 'Encrypted',
           message: 'Stored as a HIDDEN-CAP code block.',
-          action: FilledButton.icon(
-            onPressed: () => launchUrl(Uri.parse(link.build())),
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('Open in Capacities'),
+          action: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FilledButton.icon(
+                onPressed: () => launchUrl(Uri.parse(link.build())),
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open in Capacities'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: c.editEncrypted,
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit'),
+              ),
+            ],
           ),
         ),
       HomeError(:final message) => _Centered(
@@ -111,8 +134,20 @@ class HomePage extends StatelessWidget {
 class _PlainEditor extends StatefulWidget {
   final List<Map<String, dynamic>> initialOps;
   final Future<void> Function(List<Map<String, dynamic>>) onEncrypt;
+  final VoidCallback onBack;
+  final String heading;
+  final IconData buttonIcon;
+  final String buttonLabel;
 
-  const _PlainEditor({required this.initialOps, required this.onEncrypt});
+  const _PlainEditor({
+    super.key,
+    required this.initialOps,
+    required this.onEncrypt,
+    required this.onBack,
+    this.heading = 'Plain block — review or edit before encrypting',
+    this.buttonIcon = Icons.lock,
+    this.buttonLabel = 'Encrypt',
+  });
 
   @override
   State<_PlainEditor> createState() => _PlainEditorState();
@@ -145,12 +180,16 @@ class _PlainEditorState extends State<_PlainEditor> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
-          children: const [
-            Icon(Icons.lock_open),
-            SizedBox(width: 8),
+          children: [
+            IconButton(
+              onPressed: widget.onBack,
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back to home',
+            ),
+            const SizedBox(width: 4),
             Expanded(
-              child: Text('Plain block — review or edit before encrypting',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(widget.heading,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -172,8 +211,8 @@ class _PlainEditorState extends State<_PlainEditor> {
         const SizedBox(height: 16),
         FilledButton.icon(
           onPressed: () => widget.onEncrypt(_currentOps()),
-          icon: const Icon(Icons.lock),
-          label: const Text('Encrypt'),
+          icon: Icon(widget.buttonIcon),
+          label: Text(widget.buttonLabel),
         ),
       ],
     );
@@ -182,7 +221,8 @@ class _PlainEditorState extends State<_PlainEditor> {
 
 class _DecryptedView extends StatefulWidget {
   final List<Map<String, dynamic>> deltaOps;
-  const _DecryptedView({required this.deltaOps});
+  final VoidCallback onEdit;
+  const _DecryptedView({required this.deltaOps, required this.onEdit});
 
   @override
   State<_DecryptedView> createState() => _DecryptedViewState();
@@ -213,10 +253,18 @@ class _DecryptedViewState extends State<_DecryptedView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
-          children: const [
-            Icon(Icons.lock_open),
-            SizedBox(width: 8),
-            Text('Decrypted', style: TextStyle(fontWeight: FontWeight.bold)),
+          children: [
+            const Icon(Icons.lock_open),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text('Decrypted',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            OutlinedButton.icon(
+              onPressed: widget.onEdit,
+              icon: const Icon(Icons.edit),
+              label: const Text('Edit'),
+            ),
           ],
         ),
         const SizedBox(height: 16),
