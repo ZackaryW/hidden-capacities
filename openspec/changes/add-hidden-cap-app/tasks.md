@@ -4,6 +4,7 @@
 - [x] 1.2 Add dependencies: `unofficial_capacities` (`path: ../unofficial-capacities`), `pointycastle`, `flutter_quill`, `flutter_secure_storage`, and a clipboard mechanism; `dart pub get` clean
 - [x] 1.3 Add `analysis_options.yaml` (flutter_lints) and confirm `flutter analyze` is clean on the scaffold
 - [x] 1.4 Build the LocalSend-styled shell: bottom nav (Home / Settings), theming, and an idle Home empty-state
+  - Reconcile (2026-07-14): Home states use a centered LocalSend-style hero (large circular icon + title + message); added an **exit** action in the app bar (`windowManager.close()` on desktop, `SystemNavigator.pop()` on mobile).
 
 ## 2. Live Wire Verification (blocks encrypt path)
 

@@ -1,7 +1,12 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:unofficial_capacities/unofficial_capacities.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../clipboard/clipboard_watcher.dart';
 import '../crypto/hidden_cap_cipher.dart';
@@ -83,16 +88,23 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
+class _HomeShellState extends State<HomeShell>
+    with WidgetsBindingObserver, WindowListener {
   final _watcher = ClipboardWatcher();
   HomeController? _controller;
   int _index = 0;
+
+  bool get _isDesktop =>
+      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 
   @override
   void initState() {
     super.initState();
     if (widget.watchClipboard) {
+      // Mobile foreground fires the app lifecycle; desktop window focus does
+      // not, so listen to window_manager there.
       WidgetsBinding.instance.addObserver(this);
+      if (_isDesktop) windowManager.addListener(this);
     }
     // Check once on launch (a fresh focus), then rely on focus events.
     _rebuildController().then((_) {
@@ -100,10 +112,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     });
   }
 
+  /// Desktop window regained focus.
+  @override
+  void onWindowFocus() => _checkClipboardIfIdle();
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Window/app gained focus — pick up a freshly copied deeplink on demand,
-    // instead of polling on a timer.
+    // Mobile app returned to the foreground — pick up a freshly copied deeplink
+    // on demand, instead of polling on a timer.
     if (state == AppLifecycleState.resumed) _checkClipboardIfIdle();
   }
 
@@ -132,8 +148,17 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     if (widget.watchClipboard) {
       WidgetsBinding.instance.removeObserver(this);
+      if (_isDesktop) windowManager.removeListener(this);
     }
     super.dispose();
+  }
+
+  Future<void> _exit() async {
+    if (_isDesktop) {
+      await windowManager.close();
+    } else {
+      await SystemNavigator.pop();
+    }
   }
 
   @override
@@ -147,7 +172,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       SettingsPage(store: widget.settings, onSaved: _rebuildController),
     ];
     return Scaffold(
-      appBar: AppBar(title: const Text('Hidden Capacities')),
+      appBar: AppBar(
+        title: const Text('Hidden Capacities'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.power_settings_new),
+            tooltip: 'Exit',
+            onPressed: _exit,
+          ),
+        ],
+      ),
       body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,

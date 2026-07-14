@@ -39,9 +39,9 @@ class HomePage extends StatelessWidget {
     return switch (c.state) {
       HomeIdle() => _Centered(
           icon: Icons.content_paste_search,
-          title: 'Copy a Capacities link',
-          message: 'Copy a capacities:// block link — it is detected '
-              'automatically.',
+          title: 'Ready',
+          message: 'Copy a capacities:// block link — it is picked up when you '
+              'switch back to this window.',
           action: FilledButton.icon(
             onPressed: onCheckClipboard,
             icon: const Icon(Icons.paste),
@@ -248,17 +248,41 @@ class _Centered extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 16),
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-          if (action != null) ...[const SizedBox(height: 24), action!],
-        ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // LocalSend-style circular hero.
+            Container(
+              width: 132,
+              height: 132,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.primaryContainer,
+              ),
+              child: Icon(icon, size: 60, color: scheme.onPrimaryContainer),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            if (action != null) ...[const SizedBox(height: 28), action!],
+          ],
+        ),
       ),
     );
   }
