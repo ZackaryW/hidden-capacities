@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-07-14
+goal: Let any decrypted HIDDEN-CAP block be edited and re-encrypted in place,
+  with a read-only-then-Edit decrypted view and an Edit entry point on the
+  post-encrypt success screen so the user can edit right after encrypting.
