@@ -11,16 +11,16 @@ The system SHALL use the `unofficial_capacities` `CapacitiesClient` to fetch the
 - **WHEN** the object is fetched but no block matches the deeplink's `bid`
 - **THEN** the app surfaces a "block not found" state rather than proceeding to encrypt/decrypt
 
-### Requirement: Update a block in place
-The system SHALL use the client's `updateBlock` to write the `HIDDEN-CAP:` blob back to the same object and block id, preserving the block's position and type (the update API does not permit a type change).
+### Requirement: Persist the encrypted block as a code block at the original's position
+The system SHALL store the encrypted content as a `CodeBlock` (`HIDDEN-CAP:<blob>`) inserted at the original block's position, since the update API cannot change a block's type.
 
-#### Scenario: Encrypted content persisted in place
+#### Scenario: Encrypted content persisted in the original's slot
 - **WHEN** encryption produces a `HIDDEN-CAP:` blob for the target
-- **THEN** the app calls `updateBlock` with the target object id and the original block id, writing a same-type block whose single-line content is the blob (a `TextBlock` stays a `TextBlock`, a `CodeBlock` stays a `CodeBlock`)
+- **THEN** the app calls `appendBlock` with a `CodeBlock` carrying the blob and `position` `after_block` anchored to the original block id, then `deleteBlock` on the original — so the code block occupies the original's slot rather than the bottom of the list
 
-#### Scenario: Position and deeplink preserved
-- **WHEN** a block is encrypted in place
-- **THEN** the block keeps its position in the object and its id, so the `capacities://` deeplink to it is unchanged
+#### Scenario: Deeplink updates to the new block
+- **WHEN** a block is encrypted
+- **THEN** the app returns the `capacities://` deeplink to the newly created code block (its `bid` differs from the original's)
 
 ### Requirement: Decryption is read-only
 The system SHALL NOT write decrypted plaintext back to Capacities; decryption results are shown only in the app.

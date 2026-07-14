@@ -26,10 +26,22 @@ Dio wireLoggingDio() {
   if (kDebugMode) {
     dio.interceptors.add(
       InterceptorsWrapper(
+        onRequest: (options, handler) {
+          debugPrint(formatWireLog('-> ${options.method} ${options.uri}', options.data));
+          handler.next(options);
+        },
         onResponse: (response, handler) {
-          final options = response.requestOptions;
-          debugPrint(formatWireLog('${options.method} ${options.uri}', response.data));
+          final o = response.requestOptions;
+          debugPrint(formatWireLog(
+              '<- ${o.method} ${o.uri} [${response.statusCode}]', response.data));
           handler.next(response);
+        },
+        onError: (err, handler) {
+          final o = err.requestOptions;
+          debugPrint(formatWireLog(
+              '<- ${o.method} ${o.uri} [ERROR ${err.response?.statusCode}]',
+              err.response?.data ?? err.message));
+          handler.next(err);
         },
       ),
     );

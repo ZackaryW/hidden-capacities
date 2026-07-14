@@ -15,36 +15,52 @@ void main() {
     gateway = CapacitiesGateway(CapacitiesClient(apiToken: 't', dio: dio));
   });
 
-  Map<String, dynamic> objectJson() => {
+  // Object as returned by append: the original + the new HIDDEN-CAP CodeBlock
+  // inserted right after it.
+  Map<String, dynamic> afterAppendJson(String blob) => {
         'id': 'obj-1',
         'structureId': 'ss',
         'properties': <String, dynamic>{},
         'blocks': {
           'notes': [
-            {'id': 'orig', 'type': 'TextBlock', 'tokens': <dynamic>[], 'blocks': <dynamic>[]}
+            {
+              'id': 'orig',
+              'type': 'TextBlock',
+              'tokens': [
+                {'type': 'TextToken', 'text': 'plain', 'style': <String, dynamic>{}}
+              ],
+              'blocks': <dynamic>[],
+            },
+            {'id': 'new-code', 'type': 'CodeBlock', 'lang': 'Text', 'text': blob},
           ],
         },
       };
 
-  test('encryptBlock updates a plain TextBlock in place, keeping type and id',
-      () async {
+  test(
+      'encryptBlock appends a CodeBlock after the original (position: after_block), '
+      'deletes the original, returns the new deeplink', () async {
     const blob = 'HIDDEN-CAP:xyz';
 
-    // Same-type replacement (TextBlock -> TextBlock) via PATCH /blocks/block,
-    // targeting the SAME block id so position and deeplink are preserved.
-    adapter.onPatch(
-      '/blocks/block',
-      (s) => s.reply(200, objectJson()),
+    adapter.onPost(
+      '/blocks/append',
+      (s) => s.reply(200, afterAppendJson(blob)),
       data: {
         'id': 'obj-1',
-        'blockId': 'orig',
-        'block': {
-          'type': 'TextBlock',
-          'tokens': [
-            {'type': 'TextToken', 'text': blob, 'style': <String, dynamic>{}}
-          ],
+        'blocks': [
+          {'type': 'CodeBlock', 'lang': 'Text', 'text': blob}
+        ],
+        // Insert directly after the original block so the code block takes its
+        // slot rather than landing at the bottom.
+        'position': {
+          'type': 'after_block',
+          'after_block': {'id': 'orig'},
         },
       },
+    );
+    adapter.onDelete(
+      '/block',
+      (s) => s.reply(200, afterAppendJson(blob)),
+      queryParameters: {'objectId': 'obj-1', 'blockId': 'orig'},
     );
 
     final link = await gateway.encryptBlock(
@@ -54,35 +70,51 @@ void main() {
       blob: blob,
     );
 
-    // The deeplink points at the SAME block id — stable across encryption.
-    expect(link.blockId, 'orig');
-    expect(link.build(), 'capacities://sp/obj-1?bid=orig');
+    expect(link.spaceId, 'sp');
+    expect(link.objectId, 'obj-1');
+    expect(link.blockId, 'new-code');
+    expect(link.build(), 'capacities://sp/obj-1?bid=new-code');
   });
 
-  test('encryptBlock keeps a CodeBlock a CodeBlock in place', () async {
+  test('throws if the appended CodeBlock cannot be located in the response', () async {
     const blob = 'HIDDEN-CAP:xyz';
-
-    adapter.onPatch(
-      '/blocks/block',
-      (s) => s.reply(200, objectJson()),
+    // Append response missing the new code block (only the original present).
+    adapter.onPost(
+      '/blocks/append',
+      (s) => s.reply(200, {
+        'id': 'obj-1',
+        'structureId': 'ss',
+        'properties': <String, dynamic>{},
+        'blocks': {
+          'notes': [
+            {'id': 'orig', 'type': 'TextBlock', 'tokens': <dynamic>[], 'blocks': <dynamic>[]}
+          ],
+        },
+      }),
       data: {
         'id': 'obj-1',
-        'blockId': 'code-1',
-        'block': {'type': 'CodeBlock', 'lang': 'Text', 'text': blob},
+        'blocks': [
+          {'type': 'CodeBlock', 'lang': 'Text', 'text': blob}
+        ],
+        'position': {
+          'type': 'after_block',
+          'after_block': {'id': 'orig'},
+        },
       },
     );
 
-    final link = await gateway.encryptBlock(
-      spaceId: 'sp',
-      objectId: 'obj-1',
-      original: CodeBlock(id: 'code-1', lang: 'Text', text: 'print(1)'),
-      blob: blob,
+    await expectLater(
+      gateway.encryptBlock(
+        spaceId: 'sp',
+        objectId: 'obj-1',
+        original: TextBlock(id: 'orig', tokens: [const TextToken('plain')]),
+        blob: blob,
+      ),
+      throwsA(isA<StateError>()),
     );
-
-    expect(link.blockId, 'code-1');
   });
 
-  test('throws if the block has no id', () async {
+  test('throws if the original block has no id', () async {
     await expectLater(
       gateway.encryptBlock(
         spaceId: 'sp',

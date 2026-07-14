@@ -21,8 +21,8 @@ class _FakeGateway extends CapacitiesGateway {
     required String blob,
   }) async {
     capturedBlob = blob;
-    // In-place: the deeplink keeps the original block id.
-    return CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: original.id);
+    // Append-at-position + delete: the new code block gets a fresh id.
+    return CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: 'new-code');
   }
 }
 
@@ -57,14 +57,14 @@ void main() {
       spaceId: 'sp',
     );
 
-    // Wrote a HIDDEN-CAP blob; the deeplink keeps the original block id.
-    expect(link.blockId, 'orig');
+    // Wrote a HIDDEN-CAP blob; the new code block has a fresh deeplink.
+    expect(link.blockId, 'new-code');
     expect(gateway.capturedBlob, startsWith('HIDDEN-CAP:'));
 
     // Decrypting that blob recovers exactly the delta ops that were encrypted.
     final encryptedTarget = LoadedBlock(
       objectId: 'obj-1',
-      blockId: 'orig',
+      blockId: 'new-code',
       block: CodeBlock(lang: 'Text', text: gateway.capturedBlob!),
       plainText: gateway.capturedBlob!,
     );

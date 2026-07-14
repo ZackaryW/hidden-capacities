@@ -30,8 +30,8 @@
 
 - [x] 5.1 Wire a `CapacitiesClient` from the stored token; fetch the deeplinked object and locate the target block by `bid`
 - [x] 5.2 Handle "block not found" and `CapacitiesApiException` (auth/not-found/transport) as distinct error states
-- [x] 5.3 Implement in-place `updateBlock` to persist the `HIDDEN-CAP:` code block; ensure decryption never issues a write
-  - Reconcile (2026-07-14): an earlier build did **append + delete** (which dropped the encrypted block to the bottom and changed its `?bid=` deeplink). Fixed 2026-07-14 to a true **in-place `updateBlock`** that keeps the original block's **type** (no type change — TextBlock→TextBlock, CodeBlock→CodeBlock), preserving position and a stable deeplink. Decryption never writes (holds).
+- [x] 5.3 Persist the `HIDDEN-CAP:` code block at the original's position; ensure decryption never issues a write
+  - Reconcile (2026-07-14): the update API cannot change a block's type, so encryption **appends a `CodeBlock`** with `position: {type: "after_block", after_block: {id: <original>}}` and **deletes the original** — the code block takes the original's slot. Confirmed working **live** 2026-07-14 (append places the block in-slot; delete returns 200 and removes the original). The `?bid=` deeplink changes to the new block (accepted; code-block form + correct position prioritized over a stable id). Decryption never writes (holds).
 - [x] 5.4 Unit tests (mocked client) for fetch-and-locate, update-in-place, and error-state mapping
 
 ## 6. Clipboard Deeplink (`clipboard-deeplink`)
@@ -67,7 +67,7 @@
 Reconciled `tasks.md` against the actually-built `lib/` + `test/` (55 tests green, `flutter analyze` clean, `openspec validate --strict` valid). Status:
 
 - **2.1** ✅ done — code-block wire shape confirmed live and recorded in design.md; `wire_log.dart` interceptor added.
-- **5.3 / 4.3** ✅ encryption is a true in-place `updateBlock` keeping the block's type — preserves position and a stable `?bid=` deeplink. (Fixed 2026-07-14 from an earlier append+delete that placed the block at the bottom and changed the deeplink.)
+- **5.3 / 4.3** ✅ encryption appends a `CodeBlock` at the original's slot via `position: {type: "after_block", after_block: {id: …}}` + deletes the original — code-block form at the right position, **confirmed live**. The `?bid=` deeplink changes to the new block.
 - **New finding** (design.md): block-level `hierarchy` (headings) is dropped by the transform — accepted degradation, possible follow-up.
 
 - **8.3** ✅ done — editable Quill editor on the encrypt path; encryption uses the live editor delta.

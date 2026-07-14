@@ -53,34 +53,50 @@ class CapacitiesGateway {
     );
   }
 
-  /// Encrypt-in-storage: overwrite [original] **in place** with a same-type
-  /// block carrying [blob], preserving the block's position and id (so the
-  /// `?bid=` deeplink is stable). The Capacities update API does not permit a
-  /// type change, so a `CodeBlock` stays a `CodeBlock` and any other supported
-  /// block is written back as a `TextBlock` whose single token holds the blob.
+  /// Encrypt-in-storage: append a `HIDDEN-CAP` `CodeBlock` immediately **after**
+  /// [original] (using the append `position` descriptor `after_block`), then
+  /// delete the original — so the encrypted code block takes the original's
+  /// slot. Returns the deeplink to the new block (its id differs from the
+  /// original's).
+  ///
+  /// The Capacities update API cannot change a block's **type**, so producing a
+  /// code block requires creating a new block; `position: after_block` places
+  /// it in the original's spot rather than at the bottom of the list.
   Future<CapacitiesLink> encryptBlock({
     required String spaceId,
     required String objectId,
     required Block original,
     required String blob,
   }) async {
-    final blockId = original.id;
-    if (blockId == null) {
+    final originalId = original.id;
+    if (originalId == null) {
       throw StateError('cannot encrypt a block with no id');
     }
-    await _client.updateBlock(
+    final afterAppend = await _client.appendBlock(
       id: objectId,
-      blockId: blockId,
-      block: _hiddenCapBlock(original, blob),
+      blocks: [CodeBlock(lang: 'Text', text: blob)],
+      position: {
+        'type': 'after_block',
+        'after_block': {'id': originalId},
+      },
     );
-    return CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: blockId);
+    final newBlockId = _findCodeBlockId(afterAppend, blob);
+    if (newBlockId == null) {
+      throw StateError('appended HIDDEN-CAP code block not found in response');
+    }
+    await _client.deleteBlock(objectId: objectId, blockId: originalId);
+    return CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: newBlockId);
   }
 
-  /// The same-type replacement block that stores the HIDDEN-CAP [blob].
-  Block _hiddenCapBlock(Block original, String blob) => switch (original) {
-        CodeBlock() => CodeBlock(lang: 'Text', text: blob),
-        _ => TextBlock(tokens: [TextToken(blob)]),
-      };
+  /// The id of the newly appended `CodeBlock` (matched by its blob text).
+  String? _findCodeBlockId(ApiObject object, String blob) {
+    for (final propertyId in (object.blocks ?? const {}).keys) {
+      for (final block in object.blocksIn(propertyId)) {
+        if (block is CodeBlock && block.text == blob) return block.id;
+      }
+    }
+    return null;
+  }
 
   Block? _locate(ApiObject object, String blockId) {
     for (final propertyId in (object.blocks ?? const {}).keys) {
