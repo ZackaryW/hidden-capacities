@@ -2,7 +2,6 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:unofficial_capacities/unofficial_capacities.dart';
@@ -153,12 +152,9 @@ class _HomeShellState extends State<HomeShell>
     super.dispose();
   }
 
-  Future<void> _exit() async {
-    if (_isDesktop) {
-      await windowManager.close();
-    } else {
-      await SystemNavigator.pop();
-    }
+  void _exitToHome() {
+    _controller?.backToHome();
+    if (_index != 0) setState(() => _index = 0);
   }
 
   @override
@@ -178,7 +174,7 @@ class _HomeShellState extends State<HomeShell>
           IconButton(
             icon: const Icon(Icons.power_settings_new),
             tooltip: 'Exit',
-            onPressed: _exit,
+            onPressed: _exitToHome,
           ),
         ],
       ),

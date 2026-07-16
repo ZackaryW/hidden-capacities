@@ -30,3 +30,9 @@ Feature: hidden-capacities journeys
     Given a bound integration proof
     When the bound integration proof is executed
     Then it passes
+
+  @proof_exit_to_home
+  Scenario: Exit returns to an idle clipboard-ready Home without closing the app
+    Given a bound integration proof
+    When the bound integration proof is executed
+    Then it passes
