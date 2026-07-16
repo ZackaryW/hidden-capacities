@@ -15,7 +15,8 @@ void main() {
     gateway = CapacitiesGateway(CapacitiesClient(apiToken: 't', dio: dio));
   });
 
-  // Object as returned by append: original TextBlock + the new HIDDEN-CAP CodeBlock.
+  // Object as returned by append: the original + the new HIDDEN-CAP CodeBlock
+  // inserted right after it.
   Map<String, dynamic> afterAppendJson(String blob) => {
         'id': 'obj-1',
         'structureId': 'ss',
@@ -35,8 +36,9 @@ void main() {
         },
       };
 
-  test('encryptBlock appends a CodeBlock, deletes the original, returns the new deeplink',
-      () async {
+  test(
+      'encryptBlock appends a CodeBlock after the original (position: after_block), '
+      'deletes the original, returns the new deeplink', () async {
     const blob = 'HIDDEN-CAP:xyz';
 
     adapter.onPost(
@@ -47,6 +49,12 @@ void main() {
         'blocks': [
           {'type': 'CodeBlock', 'lang': 'Text', 'text': blob}
         ],
+        // Insert directly after the original block so the code block takes its
+        // slot rather than landing at the bottom.
+        'position': {
+          'type': 'after_block',
+          'after_block': {'id': 'orig'},
+        },
       },
     );
     adapter.onDelete(
@@ -58,20 +66,19 @@ void main() {
     final link = await gateway.encryptBlock(
       spaceId: 'sp',
       objectId: 'obj-1',
-      originalBlockId: 'orig',
+      original: TextBlock(id: 'orig', tokens: [const TextToken('plain')]),
       blob: blob,
     );
 
     expect(link.spaceId, 'sp');
     expect(link.objectId, 'obj-1');
     expect(link.blockId, 'new-code');
-    expect(link.build(),
-        'capacities://sp/obj-1?bid=new-code');
+    expect(link.build(), 'capacities://sp/obj-1?bid=new-code');
   });
 
   test('throws if the appended CodeBlock cannot be located in the response', () async {
     const blob = 'HIDDEN-CAP:xyz';
-    // Response missing the new code block (append returned only the original).
+    // Append response missing the new code block (only the original present).
     adapter.onPost(
       '/blocks/append',
       (s) => s.reply(200, {
@@ -89,6 +96,10 @@ void main() {
         'blocks': [
           {'type': 'CodeBlock', 'lang': 'Text', 'text': blob}
         ],
+        'position': {
+          'type': 'after_block',
+          'after_block': {'id': 'orig'},
+        },
       },
     );
 
@@ -96,8 +107,20 @@ void main() {
       gateway.encryptBlock(
         spaceId: 'sp',
         objectId: 'obj-1',
-        originalBlockId: 'orig',
+        original: TextBlock(id: 'orig', tokens: [const TextToken('plain')]),
         blob: blob,
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('throws if the original block has no id', () async {
+    await expectLater(
+      gateway.encryptBlock(
+        spaceId: 'sp',
+        objectId: 'obj-1',
+        original: TextBlock(tokens: [const TextToken('plain')]),
+        blob: 'HIDDEN-CAP:xyz',
       ),
       throwsA(isA<StateError>()),
     );

@@ -49,6 +49,12 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   # Launch the capacities:// deeplink to jump back into Capacities.
   url_launcher: ^6.3.0
+  # Desktop window focus events (mobile uses the app lifecycle instead), so the
+  # clipboard is checked when the window regains focus.
+  window_manager: ^0.4.0
+  # Direct dep for the debug wire-logging interceptor (also transitive via
+  # unofficial_capacities); the client accepts an injected Dio.
+  dio: ^5.7.0
 
 dev_dependencies:
   flutter_test:
@@ -57,9 +63,6 @@ dev_dependencies:
     sdk: flutter
   # Mock the Dio transport for gateway unit tests (no live Capacities calls).
   http_mock_adapter: ^0.6.1
-  # Imported directly by gateway tests to inject a mock adapter.
-  dio: ^5.7.0
-
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your

@@ -1,5 +1,20 @@
 ## ADDED Requirements
 
+### Requirement: On-demand clipboard checking on focus
+The system SHALL check the clipboard on demand — when the app window gains focus and on an explicit user action — rather than polling on a timer, and SHALL NOT perform a focus-triggered check while an editor or content view is open.
+
+#### Scenario: Window regains focus while idle
+- **WHEN** the app window gains focus and no editor or content view is open
+- **THEN** the app checks the clipboard once and, if it holds a new `capacities://` deeplink, loads that target
+
+#### Scenario: Focus while an editor is open is not disrupted
+- **WHEN** the app window gains focus while the plain-block editor or the decrypted view is open
+- **THEN** the app does not check the clipboard and does not change the current target
+
+#### Scenario: Unchanged clipboard on repeated focus
+- **WHEN** the app window gains focus and the clipboard is unchanged since the last check
+- **THEN** the app does not reload or change the current target
+
 ### Requirement: Clipboard deeplink watching
 The system SHALL monitor the clipboard for `capacities://` deeplinks and, when one appears, capture it as the current target without requiring manual paste.
 

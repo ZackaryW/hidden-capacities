@@ -1,12 +1,17 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:unofficial_capacities/unofficial_capacities.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../clipboard/clipboard_watcher.dart';
 import '../crypto/hidden_cap_cipher.dart';
 import '../integration/capacities_gateway.dart';
 import '../service/hidden_cap_service.dart';
+import '../integration/wire_log.dart';
 import '../settings/flutter_secure_kv.dart';
 import '../settings/settings_store.dart';
 import '../transform/block_quill_transform.dart';
@@ -18,7 +23,9 @@ import 'settings_page.dart';
 typedef ServiceFactory = HiddenCapService Function(String token);
 
 HiddenCapService _defaultServiceFactory(String token) => HiddenCapService(
-      gateway: CapacitiesGateway(CapacitiesClient(apiToken: token)),
+      gateway: CapacitiesGateway(
+        CapacitiesClient(apiToken: token, dio: wireLoggingDio()),
+      ),
       cipher: HiddenCapCipher(),
       transform: BlockQuillTransform(),
     );
@@ -80,19 +87,47 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell>
+    with WidgetsBindingObserver, WindowListener {
   final _watcher = ClipboardWatcher();
   HomeController? _controller;
   int _index = 0;
 
+  bool get _isDesktop =>
+      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
   @override
   void initState() {
     super.initState();
+    if (widget.watchClipboard) {
+      // Mobile foreground fires the app lifecycle; desktop window focus does
+      // not, so listen to window_manager there.
+      WidgetsBinding.instance.addObserver(this);
+      if (_isDesktop) windowManager.addListener(this);
+    }
+    // Check once on launch (a fresh focus), then rely on focus events.
     _rebuildController().then((_) {
-      if (widget.watchClipboard) {
-        _watcher.start((raw) => _controller?.handleClipboard(raw));
-      }
+      if (widget.watchClipboard) _checkClipboardIfIdle();
     });
+  }
+
+  /// Desktop window regained focus.
+  @override
+  void onWindowFocus() => _checkClipboardIfIdle();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Mobile app returned to the foreground — pick up a freshly copied deeplink
+    // on demand, instead of polling on a timer.
+    if (state == AppLifecycleState.resumed) _checkClipboardIfIdle();
+  }
+
+  /// Checks the clipboard only when no editor/content view is open, so a
+  /// focus change never clobbers what the user is editing or viewing.
+  void _checkClipboardIfIdle() {
+    final c = _controller;
+    if (c == null || c.hasOpenEditor) return;
+    _watcher.checkNow(c.handleClipboard);
   }
 
   Future<void> _rebuildController() async {
@@ -110,8 +145,16 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
-    _watcher.dispose();
+    if (widget.watchClipboard) {
+      WidgetsBinding.instance.removeObserver(this);
+      if (_isDesktop) windowManager.removeListener(this);
+    }
     super.dispose();
+  }
+
+  void _exitToHome() {
+    _controller?.backToHome();
+    if (_index != 0) setState(() => _index = 0);
   }
 
   @override
@@ -125,7 +168,16 @@ class _HomeShellState extends State<HomeShell> {
       SettingsPage(store: widget.settings, onSaved: _rebuildController),
     ];
     return Scaffold(
-      appBar: AppBar(title: const Text('Hidden Capacities')),
+      appBar: AppBar(
+        title: const Text('Hidden Capacities'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.power_settings_new),
+            tooltip: 'Exit',
+            onPressed: _exitToHome,
+          ),
+        ],
+      ),
       body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,

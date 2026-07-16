@@ -39,9 +39,9 @@ class HomePage extends StatelessWidget {
     return switch (c.state) {
       HomeIdle() => _Centered(
           icon: Icons.content_paste_search,
-          title: 'Copy a Capacities link',
-          message: 'Copy a capacities:// block link — it is detected '
-              'automatically.',
+          title: 'Ready',
+          message: 'Copy a capacities:// block link — it is picked up when you '
+              'switch back to this window.',
           action: FilledButton.icon(
             onPressed: onCheckClipboard,
             icon: const Icon(Icons.paste),
@@ -60,15 +60,11 @@ class HomePage extends StatelessWidget {
           message: 'That capacities:// link could not be parsed.',
         ),
       HomeLoading() => const Center(child: CircularProgressIndicator()),
-      HomeLoadedPlain() => _Centered(
-          icon: Icons.lock_open,
-          title: 'Plain block',
-          message: 'This block is not encrypted.',
-          action: FilledButton.icon(
-            onPressed: c.encryptCurrent,
-            icon: const Icon(Icons.lock),
-            label: const Text('Encrypt'),
-          ),
+      HomeLoadedPlain(:final initialOps) => _PlainEditor(
+          key: const ValueKey('plainEditor'),
+          initialOps: initialOps,
+          onEncrypt: c.encryptCurrent,
+          onBack: c.backToHome,
         ),
       HomeLoadedEncrypted() => _Centered(
           icon: Icons.lock,
@@ -91,15 +87,36 @@ class HomePage extends StatelessWidget {
             label: const Text('Retry'),
           ),
         ),
-      HomeDecrypted(:final deltaOps) => _DecryptedView(deltaOps: deltaOps),
+      HomeDecrypted(:final deltaOps) =>
+        _DecryptedView(deltaOps: deltaOps, onEdit: c.editCurrent),
+      HomeEditingDecrypted(:final deltaOps) => _PlainEditor(
+          key: const ValueKey('editEditor'),
+          initialOps: deltaOps,
+          onEncrypt: c.saveEdit,
+          onBack: c.backToHome,
+          heading: 'Editing decrypted content — save to re-encrypt',
+          buttonIcon: Icons.save,
+          buttonLabel: 'Save',
+        ),
       HomeEncrypted(:final link) => _Centered(
           icon: Icons.check_circle_outline,
           title: 'Encrypted',
           message: 'Stored as a HIDDEN-CAP code block.',
-          action: FilledButton.icon(
-            onPressed: () => launchUrl(Uri.parse(link.build())),
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('Open in Capacities'),
+          action: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FilledButton.icon(
+                onPressed: () => launchUrl(Uri.parse(link.build())),
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open in Capacities'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: c.editEncrypted,
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit'),
+              ),
+            ],
           ),
         ),
       HomeError(:final message) => _Centered(
@@ -111,9 +128,101 @@ class HomePage extends StatelessWidget {
   }
 }
 
+/// Editable Quill view of a plain block: seeded with the block's content so
+/// the user can review/edit before encrypting. The live editor delta is what
+/// gets encrypted.
+class _PlainEditor extends StatefulWidget {
+  final List<Map<String, dynamic>> initialOps;
+  final Future<void> Function(List<Map<String, dynamic>>) onEncrypt;
+  final VoidCallback onBack;
+  final String heading;
+  final IconData buttonIcon;
+  final String buttonLabel;
+
+  const _PlainEditor({
+    super.key,
+    required this.initialOps,
+    required this.onEncrypt,
+    required this.onBack,
+    this.heading = 'Plain block — review or edit before encrypting',
+    this.buttonIcon = Icons.lock,
+    this.buttonLabel = 'Encrypt',
+  });
+
+  @override
+  State<_PlainEditor> createState() => _PlainEditorState();
+}
+
+class _PlainEditorState extends State<_PlainEditor> {
+  late final QuillController _quill;
+
+  @override
+  void initState() {
+    super.initState();
+    _quill = QuillController(
+      document: Document.fromJson(widget.initialOps),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+  }
+
+  @override
+  void dispose() {
+    _quill.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> _currentOps() =>
+      _quill.document.toDelta().toJson().cast<Map<String, dynamic>>();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              onPressed: widget.onBack,
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back to home',
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(widget.heading,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        QuillSimpleToolbar(controller: _quill),
+        const SizedBox(height: 8),
+        Expanded(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(color: Theme.of(context).dividerColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: QuillEditor.basic(controller: _quill),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: () => widget.onEncrypt(_currentOps()),
+          icon: Icon(widget.buttonIcon),
+          label: Text(widget.buttonLabel),
+        ),
+      ],
+    );
+  }
+}
+
 class _DecryptedView extends StatefulWidget {
   final List<Map<String, dynamic>> deltaOps;
-  const _DecryptedView({required this.deltaOps});
+  final VoidCallback onEdit;
+  const _DecryptedView({required this.deltaOps, required this.onEdit});
 
   @override
   State<_DecryptedView> createState() => _DecryptedViewState();
@@ -144,10 +253,18 @@ class _DecryptedViewState extends State<_DecryptedView> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
-          children: const [
-            Icon(Icons.lock_open),
-            SizedBox(width: 8),
-            Text('Decrypted', style: TextStyle(fontWeight: FontWeight.bold)),
+          children: [
+            const Icon(Icons.lock_open),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text('Decrypted',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            OutlinedButton.icon(
+              onPressed: widget.onEdit,
+              icon: const Icon(Icons.edit),
+              label: const Text('Edit'),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -179,17 +296,41 @@ class _Centered extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 16),
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(message, textAlign: TextAlign.center),
-          if (action != null) ...[const SizedBox(height: 24), action!],
-        ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // LocalSend-style circular hero.
+            Container(
+              width: 132,
+              height: 132,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: scheme.primaryContainer,
+              ),
+              child: Icon(icon, size: 60, color: scheme.onPrimaryContainer),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            if (action != null) ...[const SizedBox(height: 28), action!],
+          ],
+        ),
       ),
     );
   }

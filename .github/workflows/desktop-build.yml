@@ -1,0 +1,93 @@
+name: Desktop builds
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Windows
+            os: windows-latest
+            build-command: flutter build windows --release
+            artifact-name: hidden-capacities-windows
+            artifact-path: hidden-capacities-windows.zip
+          - platform: macOS
+            os: macos-latest
+            build-command: flutter build macos --release
+            artifact-name: hidden-capacities-macos
+            artifact-path: hidden-capacities-macos.zip
+          - platform: Linux
+            os: ubuntu-latest
+            build-command: flutter build linux --release
+            artifact-name: hidden-capacities-linux
+            artifact-path: hidden-capacities-linux.tar.gz
+
+    steps:
+      - name: Check out hidden-capacities
+        uses: actions/checkout@v6
+        with:
+          path: hidden-capacities
+
+      # pubspec.yaml intentionally uses ../unofficial-capacities.
+      - name: Check out unofficial-capacities dependency
+        uses: actions/checkout@v6
+        with:
+          repository: ZackaryW/unofficial-capacities
+          path: unofficial-capacities
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsecret-1-dev
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.6
+          channel: stable
+          cache: true
+          pub-cache: true
+
+      - name: Resolve dependencies
+        working-directory: hidden-capacities
+        run: flutter pub get
+
+      - name: Build release application
+        working-directory: hidden-capacities
+        run: ${{ matrix.build-command }}
+
+      - name: Package Windows application
+        if: runner.os == 'Windows'
+        working-directory: hidden-capacities
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath hidden-capacities-windows.zip
+
+      - name: Package macOS application
+        if: runner.os == 'macOS'
+        working-directory: hidden-capacities
+        run: ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/hidden_capacities.app hidden-capacities-macos.zip
+
+      - name: Package Linux application
+        if: runner.os == 'Linux'
+        working-directory: hidden-capacities
+        run: tar -C build/linux/x64/release/bundle -czf hidden-capacities-linux.tar.gz .
+
+      - name: Upload release bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: hidden-capacities/${{ matrix.artifact-path }}
+          if-no-files-found: error
+          retention-days: 14

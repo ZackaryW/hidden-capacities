@@ -53,35 +53,43 @@ class CapacitiesGateway {
     );
   }
 
-  /// Encrypt-in-storage: append a `HIDDEN-CAP` code block carrying [blob],
-  /// delete the original block, and return the deeplink to the new block.
+  /// Encrypt-in-storage: append a `HIDDEN-CAP` `CodeBlock` immediately **after**
+  /// [original] (using the append `position` descriptor `after_block`), then
+  /// delete the original — so the encrypted code block takes the original's
+  /// slot. Returns the deeplink to the new block (its id differs from the
+  /// original's).
   ///
-  /// The Capacities update API forbids changing a block's type, so an
-  /// encrypted block is written as a new `CodeBlock` (append) and the original
-  /// is removed — see the `capacities-integration` spec.
+  /// The Capacities update API cannot change a block's **type**, so producing a
+  /// code block requires creating a new block; `position: after_block` places
+  /// it in the original's spot rather than at the bottom of the list.
   Future<CapacitiesLink> encryptBlock({
     required String spaceId,
     required String objectId,
-    required String originalBlockId,
+    required Block original,
     required String blob,
   }) async {
+    final originalId = original.id;
+    if (originalId == null) {
+      throw StateError('cannot encrypt a block with no id');
+    }
     final afterAppend = await _client.appendBlock(
       id: objectId,
       blocks: [CodeBlock(lang: 'Text', text: blob)],
+      position: {
+        'type': 'after_block',
+        'after_block': {'id': originalId},
+      },
     );
-    final newBlockId = _findAppendedCodeBlockId(afterAppend, blob);
+    final newBlockId = _findCodeBlockId(afterAppend, blob);
     if (newBlockId == null) {
       throw StateError('appended HIDDEN-CAP code block not found in response');
     }
-    await _client.deleteBlock(objectId: objectId, blockId: originalBlockId);
-    return CapacitiesLink(
-      spaceId: spaceId,
-      objectId: objectId,
-      blockId: newBlockId,
-    );
+    await _client.deleteBlock(objectId: objectId, blockId: originalId);
+    return CapacitiesLink(spaceId: spaceId, objectId: objectId, blockId: newBlockId);
   }
 
-  String? _findAppendedCodeBlockId(ApiObject object, String blob) {
+  /// The id of the newly appended `CodeBlock` (matched by its blob text).
+  String? _findCodeBlockId(ApiObject object, String blob) {
     for (final propertyId in (object.blocks ?? const {}).keys) {
       for (final block in object.blocksIn(propertyId)) {
         if (block is CodeBlock && block.text == blob) return block.id;
